@@ -18,8 +18,15 @@ The system consists of three independent, standalone testable components:
 
 ## Current Model Performance
 
-* **Test ROC-AUC Score**: **0.8288**
-* **What this means**: An ROC-AUC of ~0.83 indicates a highly robust model that has successfully learned key directional associations (such as SACCO membership, transaction regularity, and airtime top-up frequency) without suffering from data leakage (which would result in an unrealistically high AUC > 0.97) or random noise classification (which would result in an AUC < 0.65). It represents a strong, realistic model suitable for commercial evaluation.
+* **Test ROC-AUC Score**: **0.8183**
+* **Pricing Tier Performance (Test Set)**:
+  | Risk Pricing Tier | Count | Actual Defaults | Actual Default Rate |
+  |---|---|---|---|
+  | **Low** (< 15% prob) | 329 | 18 | **5.47%** |
+  | **Medium** (15% to 35% prob) | 215 | 59 | **27.44%** |
+  | **High** (>= 35% prob) | 56 | 33 | **58.93%** |
+
+* **What this means**: An ROC-AUC of ~0.82 indicates a highly robust model that has successfully learned key directional associations (such as SACCO membership, transaction regularity, and average daily income band) without suffering from data leakage (which would result in an unrealistically high AUC > 0.97) or random noise classification (which would result in an AUC < 0.65). The actual default rates in the pricing tiers scale monotonically and separate risk effectively, ensuring high business utility.
 
 ---
 
@@ -106,6 +113,7 @@ curl -s -X POST http://127.0.0.1:8000/score \
   -H "Content-Type: application/json" \
   -d '{
     "phone_number_hash": "a1b2c3d4e5f6g7h8i9j0",
+    "data_provenance": "self_reported",
     "self_reported": {
       "occupation": "other",
       "avg_daily_income_band": "under_500",
@@ -114,7 +122,6 @@ curl -s -X POST http://127.0.0.1:8000/score \
     "synthetic_historical": {
       "momo_txn_frequency": 2.0,
       "momo_txn_regularity_score": 0.21,
-      "airtime_topup_cadence": 12.0,
       "sacco_contribution_flag": false
     },
     "live_behavioral": {
@@ -131,19 +138,20 @@ curl -s -X POST http://127.0.0.1:8000/score \
   "risk_tier": "High",
   "premium_quote_kes": 500,
   "default_probability": 0.7419211864471436,
+  "data_provenance": "self_reported",
   "shap_top_factors": [
     {
-      "feature": "airtime_topup_cadence",
+      "feature": "sacco_contribution_flag",
       "direction": "increases_risk",
-      "plain_language": "Longer gaps between airtime top-ups suggest potential cash flow constraints."
+      "plain_language": "Lack of cooperative/SACCO membership limits group-based security."
     },
     {
       "feature": "momo_txn_regularity_score",
       "direction": "increases_risk",
-      "plain_language": "Irregular mobile money activity suggests inconsistent income."
+      "plain_language": "Short business operational tenure suggests cash flow variance."
     }
   ],
-  "data_disclosure": "Score based on synthetic demo data, not real transaction history."
+  "data_disclosure": "Score based on self-reported inputs and work history proxies."
 }
 ```
 

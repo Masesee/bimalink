@@ -17,7 +17,7 @@ app = Flask(__name__)
 # KEY: sessionId (str)
 # VALUE: dict of:
 #   - session_start_time: float (epoch time)
-#   - validated_step_count: int (0 to 4)
+#   - validated_step_count: int (0 to 6)
 #   - processed_input_count: int (total valid + invalid inputs processed)
 #   - collected_answers: dict (step_name -> validated literal string)
 #   - retry_count: int (total number of validation failures)
@@ -107,12 +107,15 @@ def ussd_callback():
                 else "No other significant risk drivers detected."
             )
 
+            # TODO: bimalink.app is a placeholder domain for the statement upload webapp.
             response_text = (
-                f"END Your tier: {response.risk_tier}. Premium: KES {response.premium_quote_kes}/month.\n"
-                f"Why:\n"
+                f"END Your Estimated Quote: {response.risk_tier}. Premium: KES {response.premium_quote_kes}/month.\n"
+                f"Based on:\n"
                 f"- {shap_1}\n"
                 f"- {shap_2}\n"
-                f"Reply {service_code} to enroll."
+                f"This is an ESTIMATE based on your answers.\n"
+                f"For a more accurate quote, visit bimalink.app and upload your mobile money statement.\n"
+                f"Reply {service_code} to enroll at this estimated rate."
             )
         except ScoringServiceUnavailable as e:
             # Handle backend outages gracefully, returning an END message rather than a raw crash

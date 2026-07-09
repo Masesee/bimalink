@@ -12,6 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.train_risk_model import preprocess_features  # noqa: E402
 
+MIN_TIER_GAP = 0.05  # Enforces a minimum 5% gap floor between consecutive pricing tiers to absorb sampling noise
+
 
 def test_artifacts_exist():
     models_dir = os.path.join("pipelines", "underwriting", "models")
@@ -51,6 +53,55 @@ def test_saved_model_auc_range():
     auc = roc_auc_score(y_test, y_pred_prob)
 
     assert 0.65 <= auc <= 0.97, f"Trained model test ROC-AUC score {auc:.4f} is outside [0.65, 0.97]"
+
+
+def test_pricing_tier_risk_sorted():
+    """
+    Enforces that actual default rates within the three risk pricing tiers
+    scale monotonically (Low < Medium < High) in the test set.
+
+    NOTE ON VARIANCE:
+    The High Risk tier has a relatively small sample size (n=56 on 600 test rows).
+    This small n results in higher sampling variance. If a new seed or data split
+    causes a transient overlap in rates, re-run with a larger sample size or review
+    the logit weights rather than assuming model degradation.
+    """
+    csv_path = os.path.join("pipelines", "underwriting", "data", "synthetic_profiles.csv")
+    models_dir = os.path.join("pipelines", "underwriting", "models")
+
+    df = pd.read_csv(csv_path)
+    X_raw = df.drop(columns=["defaulted_or_claimed"])
+    y = df["defaulted_or_claimed"]
+
+    with open(os.path.join(models_dir, "encoder_config.json"), "r") as f:
+        encoder_config = json.load(f)
+
+    X_encoded = preprocess_features(X_raw, encoder_config)
+
+    _, X_test, _, y_test = train_test_split(
+        X_encoded, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    model = joblib.load(os.path.join(models_dir, "model.joblib"))
+    y_pred_prob = model.predict_proba(X_test)[:, 1]
+
+    from src.train_risk_model import map_default_probability_to_tier
+    test_results = pd.DataFrame({"default": y_test, "prob": y_pred_prob})
+
+    tiers = [map_default_probability_to_tier(p)[0] for p in y_pred_prob]
+    test_results["tier"] = tiers
+
+    tier_rates = {}
+    for tier_name in ["Low", "Medium", "High"]:
+        subset = test_results[test_results["tier"] == tier_name]
+        tier_rates[tier_name] = subset["default"].mean() if len(subset) > 0 else 0.0
+
+    med_low = tier_rates["Medium"] - tier_rates["Low"]
+    high_med = tier_rates["High"] - tier_rates["Medium"]
+    assert med_low >= MIN_TIER_GAP, \
+        f"Low-to-Medium pricing gap ({med_low:.2%}) is below floor {MIN_TIER_GAP:.0%}"
+    assert high_med >= MIN_TIER_GAP, \
+        f"Medium-to-High pricing gap ({high_med:.2%}) is below floor {MIN_TIER_GAP:.0%}"
 
 
 def test_single_batch_overfit():

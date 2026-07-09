@@ -43,10 +43,6 @@ def test_directional_feature_relationships():
     assert class_means.loc[0, "momo_txn_frequency"] > class_means.loc[1, "momo_txn_frequency"], \
         "Directional check failed: Higher momo frequency should correspond to lower default risk"
 
-    # 3. Longer airtime top-up cadence -> higher default (mean for class 1 > class 0)
-    assert class_means.loc[1, "airtime_topup_cadence"] > class_means.loc[0, "airtime_topup_cadence"], \
-        "Directional check failed: Longer airtime cadence should correspond to higher default risk"
-
     # 4. Sacco contribution flag -> lower default (mean for class 0 > class 1)
     assert class_means.loc[0, "sacco_contribution_flag"] > class_means.loc[1, "sacco_contribution_flag"], \
         "Directional check failed: SACCO membership should correspond to lower default risk"

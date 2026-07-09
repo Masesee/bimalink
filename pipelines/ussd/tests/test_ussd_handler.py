@@ -76,49 +76,54 @@ def test_ussd_callback_completion_success(mock_get_score, client):
         risk_tier="Medium",
         premium_quote_kes=300,
         default_probability=0.25,
+        data_provenance="self_reported",
         shap_top_factors=[
             ShapFactor(
-                feature="momo_txn_regularity_score",
+                feature="synthetic_historical__momo_txn_regularity_score",
                 direction="decreases_risk",
-                plain_language="Consistent money usage"
+                plain_language="Steady business tenure indicates business stability."
             ),
             ShapFactor(
-                feature="occupation",
-                direction="increases_risk",
-                plain_language="Boda rider risk tier"
+                feature="synthetic_historical__sacco_contribution_flag",
+                direction="decreases_risk",
+                plain_language="Active SACCO membership indicates strong creditworthiness."
             )
         ],
         data_disclosure="Consent details"
     )
 
-    # Initialize session in cache (simulating steps 0, 1, 2 already validated)
+    # Initialize session in cache (simulating steps 0 to 4 already validated)
     session_id = "success_session_id"
     sessions[session_id] = {
         "session_start_time": 1000.0,
-        "validated_step_count": 3,
-        "processed_input_count": 3,
+        "validated_step_count": 5,
+        "processed_input_count": 5,
         "collected_answers": {
             "language": "en",
             "occupation": "boda_rider",
-            "avg_daily_income_band": "500_to_1500"
+            "avg_daily_income_band": "500_to_1500",
+            "years_active": "over_3",
+            "sacco_contribution_flag": True
         },
         "retry_count": 0,
         "last_error": None
     }
 
-    # Submit final step choice ("2" for 1_to_3 years)
+    # Submit final step choice ("2" for 2000_to_10000)
     payload = {
         "sessionId": session_id,
         "phoneNumber": "+254712345678",
         "serviceCode": "*384*5#",
-        "text": "1*1*2*2"
+        "text": "1*1*2*2*1*2"
     }
 
     res = client.post("/ussd", data=payload)
     assert res.status_code == 200
-    assert res.text.startswith("END Your tier: Medium. Premium: KES 300/month.")
-    assert "Consistent money usage" in res.text
-    assert "Reply *384*5# to enroll." in res.text
+    assert res.text.startswith("END Your Estimated Quote: Medium. Premium: KES 300/month.")
+    assert "Steady business tenure indicates business stability." in res.text
+    assert "This is an ESTIMATE based on your answers." in res.text
+    assert "visit bimalink.app and upload your mobile money statement." in res.text
+    assert "Reply *384*5# to enroll at this estimated rate." in res.text
 
     # Verify session was cleaned up
     assert session_id not in sessions
@@ -133,12 +138,14 @@ def test_ussd_callback_completion_outage_cleanup(mock_get_score, client):
     session_id = "fail_session_id"
     sessions[session_id] = {
         "session_start_time": 1000.0,
-        "validated_step_count": 3,
-        "processed_input_count": 3,
+        "validated_step_count": 5,
+        "processed_input_count": 5,
         "collected_answers": {
             "language": "en",
             "occupation": "boda_rider",
-            "avg_daily_income_band": "500_to_1500"
+            "avg_daily_income_band": "500_to_1500",
+            "years_active": "over_3",
+            "sacco_contribution_flag": True
         },
         "retry_count": 0,
         "last_error": None
@@ -148,7 +155,7 @@ def test_ussd_callback_completion_outage_cleanup(mock_get_score, client):
         "sessionId": session_id,
         "phoneNumber": "+254712345678",
         "serviceCode": "*384*5#",
-        "text": "1*1*2*2"
+        "text": "1*1*2*2*1*2"
     }
 
     res = client.post("/ussd", data=payload)

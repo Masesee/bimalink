@@ -20,11 +20,12 @@ def preprocess_features(df, encoder_config=None):
     """
     df = df.copy()
 
-    categorical_cols = ["occupation", "avg_daily_income_band", "years_active"]
+    categorical_cols = ["occupation", "avg_daily_income_band"]
 
-    # Remove phone number hash if it's there
-    if "phone_number_hash" in df.columns:
-        df = df.drop(columns=["phone_number_hash"])
+    # Remove metadata and redundant columns if present
+    for col in ["phone_number_hash", "data_provenance", "years_active"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
 
     # Standardize sacco contribution flag
     if "sacco_contribution_flag" in df.columns:
@@ -46,6 +47,9 @@ def preprocess_features(df, encoder_config=None):
             df_encoded = df_encoded.drop(columns=["defaulted_or_claimed"])
         df_aligned = df_encoded.reindex(columns=feature_names, fill_value=0)
         return df_aligned
+
+
+MIN_TIER_GAP = 0.05  # Enforces a minimum 5% gap floor between consecutive pricing tiers to absorb sampling noise
 
 
 def map_default_probability_to_tier(prob: float) -> tuple[str, int]:
@@ -119,6 +123,39 @@ def train_pipeline(data_path, models_dir):
     recall = recall_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred)
     cm = confusion_matrix(y_test, y_pred)
+
+    # Calculate default rate per risk tier in test set
+    test_results = pd.DataFrame({
+        "default": y_test,
+        "prob": y_pred_prob
+    })
+
+    tiers = []
+    for p in y_pred_prob:
+        tier, _ = map_default_probability_to_tier(p)
+        tiers.append(tier)
+    test_results["tier"] = tiers
+
+    print("\n--- TEST SET DEFAULT RATES BY PRICING TIER ---")
+    tier_rates = {}
+    for tier_name in ["Low", "Medium", "High"]:
+        subset = test_results[test_results["tier"] == tier_name]
+        total = len(subset)
+        defaults = subset["default"].sum()
+        def_rate = (defaults / total) if total > 0 else 0.0
+        tier_rates[tier_name] = def_rate
+        print(f"Tier: {tier_name:<6} | Total: {total:<4} | Defaults: {defaults:<3} | Default Rate: {def_rate:.2%}")
+    print("----------------------------------------------\n")
+
+    # Business logical validation: Risk pricing tiers must be monotonically sorted and separate risk
+    med_low_gap = tier_rates["Medium"] - tier_rates["Low"]
+    high_med_gap = tier_rates["High"] - tier_rates["Medium"]
+    if med_low_gap < MIN_TIER_GAP or high_med_gap < MIN_TIER_GAP:
+        raise ValueError(
+            "CRITICAL ERROR: Pricing tiers are not risk-sorted with the required gap of "
+            f"{MIN_TIER_GAP:.0%}! Low={tier_rates['Low']:.2%}, "
+            f"Medium={tier_rates['Medium']:.2%}, High={tier_rates['High']:.2%}"
+        )
 
     print("\n--- SYNTHETIC RISK MODEL EVALUATION METRICS ---")
     print(f"Test ROC-AUC Score   : {auc:.4f}")

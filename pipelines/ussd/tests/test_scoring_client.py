@@ -17,6 +17,7 @@ from schemas.contracts import UserProfile, SelfReported, SyntheticHistorical, Li
 def dummy_profile():
     return UserProfile(
         phone_number_hash="dummy_hash_123",
+        data_provenance="self_reported",
         self_reported=SelfReported(
             occupation="boda_rider",
             avg_daily_income_band="500_to_1500",
@@ -25,7 +26,6 @@ def dummy_profile():
         synthetic_historical=SyntheticHistorical(
             momo_txn_frequency=5.5,
             momo_txn_regularity_score=0.8,
-            airtime_topup_cadence=2.1,
             sacco_contribution_flag=True
         ),
         live_behavioral=LiveBehavioral(
@@ -46,11 +46,12 @@ def test_get_risk_score_success(dummy_profile):
         "risk_tier": "Low",
         "premium_quote_kes": 150,
         "default_probability": 0.125,
+        "data_provenance": "self_reported",
         "shap_top_factors": [
             {
                 "feature": "momo_txn_regularity_score",
                 "direction": "decreases_risk",
-                "plain_language": "Highly regular transaction pattern"
+                "plain_language": "Steady business tenure indicates business stability."
             },
             {
                 "feature": "sacco_contribution_flag",
@@ -71,6 +72,7 @@ def test_get_risk_score_success(dummy_profile):
     res = get_risk_score(dummy_profile)
     assert res.risk_tier == "Low"
     assert res.premium_quote_kes == 150
+    assert res.data_provenance == "self_reported"
     assert len(res.shap_top_factors) == 2
     assert res.shap_top_factors[0].feature == "momo_txn_regularity_score"
 

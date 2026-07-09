@@ -1,6 +1,8 @@
 from typing import Literal
 from pydantic import BaseModel
 
+ProvenanceType = Literal["self_reported", "statement_verified"]
+
 
 class SelfReported(BaseModel):
     occupation: Literal["boda_rider", "market_trader", "other"]
@@ -11,10 +13,12 @@ class SelfReported(BaseModel):
 class SyntheticHistorical(BaseModel):
     # transactions per week
     momo_txn_frequency: float
-    # 0-1, higher = more regular intervals
+    # 0-1, higher = more regular intervals.
+    # NOTE: When data_provenance == "self_reported", momo_txn_regularity_score
+    # is a proxy value derived from years_active, not a directly measured figure.
+    # Any SHAP plain-language template must reflect this (e.g. refer to work tenure,
+    # not actual transactional regularity).
     momo_txn_regularity_score: float
-    # days between top-ups, avg
-    airtime_topup_cadence: float
     sacco_contribution_flag: bool
 
 
@@ -29,6 +33,7 @@ class LiveBehavioral(BaseModel):
 
 class UserProfile(BaseModel):
     phone_number_hash: str
+    data_provenance: ProvenanceType
     self_reported: SelfReported
     synthetic_historical: SyntheticHistorical
     live_behavioral: LiveBehavioral
@@ -44,5 +49,6 @@ class RiskScoreResponse(BaseModel):
     risk_tier: Literal["Low", "Medium", "High"]
     premium_quote_kes: int
     default_probability: float
+    data_provenance: ProvenanceType
     shap_top_factors: list[ShapFactor]
     data_disclosure: str

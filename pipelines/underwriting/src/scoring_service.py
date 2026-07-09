@@ -22,19 +22,8 @@ model = None
 explainer = None
 encoder_config = None
 
+# Baseline SHAP templates for features that do not vary by provenance
 SHAP_TEMPLATES = {
-    "momo_txn_regularity_score": {
-        "decreases_risk": "Regular mobile money activity indicates stable cash flow.",
-        "increases_risk": "Irregular mobile money activity suggests inconsistent income."
-    },
-    "momo_txn_frequency": {
-        "decreases_risk": "Frequent mobile money transactions show active business operations.",
-        "increases_risk": "Low mobile money transaction frequency suggests limited business volume."
-    },
-    "airtime_topup_cadence": {
-        "decreases_risk": "Frequent airtime top-ups indicate consistent connectivity and activity.",
-        "increases_risk": "Longer gaps between airtime top-ups suggest potential cash flow constraints."
-    },
     "sacco_contribution_flag": {
         "decreases_risk": "Active SACCO membership indicates strong savings discipline and creditworthiness.",
         "increases_risk": "Lack of cooperative/SACCO membership limits group-based security."
@@ -66,32 +55,59 @@ SHAP_TEMPLATES = {
 }
 
 
-def get_shap_explanation(feature_name: str, shap_val: float) -> ShapFactor:
+def get_shap_explanation(feature_name: str, shap_val: float, provenance: str) -> ShapFactor:
     """
     Translates a raw SHAP value and feature name into a user-friendly plain-language explanation.
+    Branches on data_provenance to ensure honest phrasing for derived proxy fields.
     """
     direction = "increases_risk" if shap_val > 0 else "decreases_risk"
 
-    # Try exact match
-    if feature_name in SHAP_TEMPLATES:
-        plain_language = SHAP_TEMPLATES[feature_name][direction]
-    else:
-        # Try substring match
-        matched_key = None
-        for key in SHAP_TEMPLATES:
-            if key in feature_name:
-                matched_key = key
-                break
-
-        if matched_key:
-            plain_language = SHAP_TEMPLATES[matched_key][direction]
-        else:
-            # Fallback
-            clean_name = feature_name.replace("_", " ").title()
+    # Branch specifically on momo_txn_regularity_score
+    if "momo_txn_regularity_score" in feature_name:
+        if provenance == "self_reported":
             if direction == "decreases_risk":
-                plain_language = f"Favorable status for {clean_name} reduces risk score."
+                plain_language = "Steady business tenure indicates business stability."
             else:
-                plain_language = f"Unfavorable status for {clean_name} increases risk score."
+                plain_language = "Short business operational tenure suggests cash flow variance."
+        else:  # statement_verified
+            if direction == "decreases_risk":
+                plain_language = "Highly regular transaction pattern reduces cash flow risk."
+            else:
+                plain_language = "Irregular mobile money transaction pattern suggests inconsistent income."
+
+    # Branch specifically on momo_txn_frequency
+    elif "momo_txn_frequency" in feature_name:
+        if provenance == "self_reported":
+            if direction == "decreases_risk":
+                plain_language = "Reported weekly transaction volume suggests healthy business activity."
+            else:
+                plain_language = "Reported weekly transaction volume suggests limited business volume."
+        else:  # statement_verified
+            if direction == "decreases_risk":
+                plain_language = "Frequent mobile money transactions show active business operations."
+            else:
+                plain_language = "Low mobile money transaction frequency suggests limited business volume."
+
+    else:
+        # Standard templates lookup
+        if feature_name in SHAP_TEMPLATES:
+            plain_language = SHAP_TEMPLATES[feature_name][direction]
+        else:
+            # Try substring match
+            matched_key = None
+            for key in SHAP_TEMPLATES:
+                if key in feature_name:
+                    matched_key = key
+                    break
+
+            if matched_key:
+                plain_language = SHAP_TEMPLATES[matched_key][direction]
+            else:
+                clean_name = feature_name.replace("_", " ").title()
+                if direction == "decreases_risk":
+                    plain_language = f"Favorable status for {clean_name} reduces risk score."
+                else:
+                    plain_language = f"Unfavorable status for {clean_name} increases risk score."
 
     return ShapFactor(
         feature=feature_name,
@@ -110,16 +126,16 @@ def run_scoring(user_profile: UserProfile) -> RiskScoreResponse:
             detail="Scoring service model artifacts are not loaded yet. Please try again."
         )
 
-    # 1. Flatten UserProfile to match training schema
+    # 1. Flatten UserProfile to match training schema (metadata fields remain for preprocessing drop)
     profile_dict = user_profile.model_dump()
     flat_profile = {
         "phone_number_hash": profile_dict["phone_number_hash"],
+        "data_provenance": profile_dict["data_provenance"],
         "occupation": profile_dict["self_reported"]["occupation"],
         "avg_daily_income_band": profile_dict["self_reported"]["avg_daily_income_band"],
         "years_active": profile_dict["self_reported"]["years_active"],
         "momo_txn_frequency": profile_dict["synthetic_historical"]["momo_txn_frequency"],
         "momo_txn_regularity_score": profile_dict["synthetic_historical"]["momo_txn_regularity_score"],
-        "airtime_topup_cadence": profile_dict["synthetic_historical"]["airtime_topup_cadence"],
         "sacco_contribution_flag": int(profile_dict["synthetic_historical"]["sacco_contribution_flag"]),
         "ussd_session_duration_sec": profile_dict["live_behavioral"]["ussd_session_duration_sec"],
         "menu_completion_rate": profile_dict["live_behavioral"]["menu_completion_rate"],
@@ -129,7 +145,7 @@ def run_scoring(user_profile: UserProfile) -> RiskScoreResponse:
 
     df_single = pd.DataFrame([flat_profile])
 
-    # 2. Encode features using saved config
+    # 2. Encode features using saved config (metadata drops happen here)
     df_aligned = preprocess_features(df_single, encoder_config)
 
     # 3. Predict probability of default
@@ -153,15 +169,16 @@ def run_scoring(user_profile: UserProfile) -> RiskScoreResponse:
     for name, val in shap_pairs[:2]:
         # Filter out features with virtually no SHAP impact to keep explanations meaningful
         if abs(val) > 1e-4:
-            top_factors.append(get_shap_explanation(name, val))
+            top_factors.append(get_shap_explanation(name, val, user_profile.data_provenance))
 
     # 6. Build and return the response
     return RiskScoreResponse(
         risk_tier=risk_tier,
         premium_quote_kes=premium_quote,
         default_probability=prob,
+        data_provenance=user_profile.data_provenance,
         shap_top_factors=top_factors,
-        data_disclosure="Score based on synthetic demo data, not real transaction history."
+        data_disclosure="Score based on self-reported inputs and work history proxies."
     )
 
 
@@ -209,6 +226,7 @@ def score_example():
     # Hardcoded profile of a typical boda boda rider for verification
     example_profile = UserProfile(
         phone_number_hash="8f9468bc7f94119d67b2d56c703bdf854e60bf7d5fdf1966a4bc2a44e594df51",
+        data_provenance="statement_verified",
         self_reported=SelfReported(
             occupation="boda_rider",
             avg_daily_income_band="500_to_1500",
@@ -217,7 +235,6 @@ def score_example():
         synthetic_historical=SyntheticHistorical(
             momo_txn_frequency=15.5,
             momo_txn_regularity_score=0.75,
-            airtime_topup_cadence=3.2,
             sacco_contribution_flag=True
         ),
         live_behavioral=LiveBehavioral(
