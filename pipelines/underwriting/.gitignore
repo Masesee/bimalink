@@ -1,0 +1,6 @@
+# Data
+data/synthetic_profiles.csv
+
+# Models
+models/*.joblib
+models/*.json
