@@ -4,3 +4,9 @@ data/synthetic_profiles.csv
 # Models
 models/*.joblib
 models/*.json
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
