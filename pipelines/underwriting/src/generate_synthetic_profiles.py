@@ -10,6 +10,31 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from schemas.contracts import UserProfile, SelfReported, SyntheticHistorical, LiveBehavioral  # noqa: E402
 
 
+def generate_single_synthetic_profile(rng):
+    """
+    Generates a single synthetic historical profile using the target distributions.
+    This is shared with the USSD layer to maintain consistency in feature spaces.
+    """
+    # momo_txn_frequency: transactions per week, exponential-like
+    momo_txn_frequency = float(rng.exponential(scale=12.0) + 1.0)
+
+    # momo_txn_regularity_score: 0-1, higher = more regular intervals
+    momo_txn_regularity_score = float(rng.uniform(0.2, 0.95))
+
+    # airtime_topup_cadence: days between top-ups, average
+    airtime_topup_cadence = float(rng.gamma(shape=3.0, scale=1.5) + 0.5)
+
+    # sacco_contribution_flag
+    sacco_contribution_flag = bool(rng.choice([True, False], p=[0.3, 0.7]))
+
+    return {
+        "momo_txn_frequency": momo_txn_frequency,
+        "momo_txn_regularity_score": momo_txn_regularity_score,
+        "airtime_topup_cadence": airtime_topup_cadence,
+        "sacco_contribution_flag": sacco_contribution_flag
+    }
+
+
 def generate_synthetic_data(num_rows=3000, seed=42):
     # Set seed for reproducibility
     np.random.seed(seed)
@@ -19,14 +44,14 @@ def generate_synthetic_data(num_rows=3000, seed=42):
     labels = []
 
     # Documented weights for risk probability logit calculation
-    # logit = intercept (0.8)
-    #       - 3.0 * regularity_score (higher regularity -> lower default)
-    #       - 1.5 * frequency_ratio (higher frequency -> lower default)
-    #       + 2.5 * cadence_ratio (longer cadence -> higher default)
-    #       - 1.2 * sacco_flag (sacco contribution -> lower default)
-    #       - 1.0 * years_over_3 (active over 3 years -> lower default)
-    #       - 1.0 * income_over_1500 (income over 1500 -> lower default)
-    #       + gaussian_noise (std = 1.2)
+    # logit = intercept (1.2)
+    #       - 5.0 * regularity_score (higher regularity -> lower default)
+    #       - 3.0 * frequency_ratio (higher frequency -> lower default)
+    #       + 4.0 * cadence_ratio (longer cadence -> higher default)
+    #       - 2.0 * sacco_flag (sacco contribution -> lower default)
+    #       - 1.5 * years_over_3 (active over 3 years -> lower default)
+    #       - 1.5 * income_over_1500 (income over 1500 -> lower default)
+    #       + gaussian_noise (std = 0.3)
 
     for i in range(num_rows):
         # 1. Generate phone number hash
@@ -50,17 +75,11 @@ def generate_synthetic_data(num_rows=3000, seed=42):
         years_active = rng.choice(["under_1", "1_to_3", "over_3"], p=[0.20, 0.50, 0.30])
 
         # 3. Synthetic historical fields
-        # momo_txn_frequency: transactions per week, exponential-like
-        momo_txn_frequency = float(rng.exponential(scale=12.0) + 1.0)
-
-        # momo_txn_regularity_score: 0-1, higher = more regular intervals
-        momo_txn_regularity_score = float(rng.uniform(0.2, 0.95))
-
-        # airtime_topup_cadence: days between top-ups, average
-        airtime_topup_cadence = float(rng.gamma(shape=3.0, scale=1.5) + 0.5)
-
-        # sacco_contribution_flag
-        sacco_contribution_flag = bool(rng.choice([True, False], p=[0.3, 0.7]))
+        hist = generate_single_synthetic_profile(rng)
+        momo_txn_frequency = hist["momo_txn_frequency"]
+        momo_txn_regularity_score = hist["momo_txn_regularity_score"]
+        airtime_topup_cadence = hist["airtime_topup_cadence"]
+        sacco_contribution_flag = hist["sacco_contribution_flag"]
 
         # 4. Live behavioral fields (session data, independent of target except menu_completion_rate)
         ussd_session_duration_sec = float(rng.exponential(scale=30.0) + 5.0)
