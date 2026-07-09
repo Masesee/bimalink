@@ -2,7 +2,7 @@
 
 This repository contains the machine learning core for an alternative-data insurance underwriting system designed for informal sector workers (boda boda riders, market traders, etc.) in Kenya who lack formal credit history.
 
-> [!IMPORTANT]  
+> [!IMPORTANT]
 > **Synthetic Data Disclosure**: All data used, generated, and processed within this repository is strictly **synthetic** and designed for hackathon demonstration purposes. No real transactions, credit, or mobile money history are used.
 
 ---

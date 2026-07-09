@@ -3,15 +3,19 @@ import os
 import json
 import joblib
 import pandas as pd
-from typing import Literal
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 
 # Add parent directory to path to allow imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from schemas.contracts import UserProfile, SelfReported, SyntheticHistorical, LiveBehavioral, ShapFactor, RiskScoreResponse
-from src.train_risk_model import preprocess_features, map_default_probability_to_tier
+from schemas.contracts import (  # noqa: E402
+    UserProfile, SelfReported, SyntheticHistorical, LiveBehavioral,
+    ShapFactor, RiskScoreResponse
+)
+from src.train_risk_model import (  # noqa: E402
+    preprocess_features, map_default_probability_to_tier
+)
 
 # Global variables for model artifacts
 model = None
@@ -61,12 +65,13 @@ SHAP_TEMPLATES = {
     }
 }
 
+
 def get_shap_explanation(feature_name: str, shap_val: float) -> ShapFactor:
     """
     Translates a raw SHAP value and feature name into a user-friendly plain-language explanation.
     """
     direction = "increases_risk" if shap_val > 0 else "decreases_risk"
-    
+
     # Try exact match
     if feature_name in SHAP_TEMPLATES:
         plain_language = SHAP_TEMPLATES[feature_name][direction]
@@ -77,7 +82,7 @@ def get_shap_explanation(feature_name: str, shap_val: float) -> ShapFactor:
             if key in feature_name:
                 matched_key = key
                 break
-        
+
         if matched_key:
             plain_language = SHAP_TEMPLATES[matched_key][direction]
         else:
@@ -87,12 +92,13 @@ def get_shap_explanation(feature_name: str, shap_val: float) -> ShapFactor:
                 plain_language = f"Favorable status for {clean_name} reduces risk score."
             else:
                 plain_language = f"Unfavorable status for {clean_name} increases risk score."
-                
+
     return ShapFactor(
         feature=feature_name,
         direction=direction,
         plain_language=plain_language
     )
+
 
 def run_scoring(user_profile: UserProfile) -> RiskScoreResponse:
     """
@@ -120,7 +126,7 @@ def run_scoring(user_profile: UserProfile) -> RiskScoreResponse:
         "session_hour_of_day": profile_dict["live_behavioral"]["session_hour_of_day"],
         "retry_count": profile_dict["live_behavioral"]["retry_count"]
     }
-    
+
     df_single = pd.DataFrame([flat_profile])
 
     # 2. Encode features using saved config
@@ -158,6 +164,7 @@ def run_scoring(user_profile: UserProfile) -> RiskScoreResponse:
         data_disclosure="Score based on synthetic demo data, not real transaction history."
     )
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global model, explainer, encoder_config
@@ -165,7 +172,7 @@ async def lifespan(app: FastAPI):
     model_path = os.path.join(root_dir, "models", "model.joblib")
     explainer_path = os.path.join(root_dir, "models", "explainer.joblib")
     encoder_path = os.path.join(root_dir, "models", "encoder_config.json")
-    
+
     print("[LOG] Starting scoring service and loading synthetic model artifacts...")
     model = joblib.load(model_path)
     explainer = joblib.load(explainer_path)
@@ -175,10 +182,12 @@ async def lifespan(app: FastAPI):
     yield
     print("[LOG] Scoring service shutting down.")
 
+
 app = FastAPI(
     title="Alternative-Data Insurance Underwriting API (Synthetic Demo)",
     lifespan=lifespan
 )
+
 
 @app.get("/health")
 def health_check():
@@ -189,9 +198,11 @@ def health_check():
         "data_mode": "synthetic"
     }
 
+
 @app.post("/score", response_model=RiskScoreResponse)
 def score_profile(user_profile: UserProfile):
     return run_scoring(user_profile)
+
 
 @app.get("/score/example", response_model=RiskScoreResponse)
 def score_example():

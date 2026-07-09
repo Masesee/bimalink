@@ -6,12 +6,14 @@ from fastapi.testclient import TestClient
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.scoring_service import app
+from src.scoring_service import app  # noqa: E402
+
 
 @pytest.fixture
 def client():
     with TestClient(app) as c:
         yield c
+
 
 def test_health_check(client):
     response = client.get("/health")
@@ -20,6 +22,7 @@ def test_health_check(client):
     assert data["status"] == "ok"
     assert data["model_loaded"] is True
     assert data["data_mode"] == "synthetic"
+
 
 def test_score_valid(client):
     payload = {
@@ -44,23 +47,24 @@ def test_score_valid(client):
     }
     response = client.post("/score", json=payload)
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["risk_tier"] in ["Low", "Medium", "High"]
     assert isinstance(data["premium_quote_kes"], int)
     assert data["premium_quote_kes"] in [150, 300, 500]
     assert 0.0 <= data["default_probability"] <= 1.0
-    
+
     assert isinstance(data["shap_top_factors"], list)
     assert len(data["shap_top_factors"]) >= 1
-    
+
     # Confirm shape top factors schema
     for factor in data["shap_top_factors"]:
         assert "feature" in factor
         assert factor["direction"] in ["increases_risk", "decreases_risk"]
         assert "plain_language" in factor
-        
+
     assert "synthetic" in data["data_disclosure"].lower()
+
 
 def test_score_malformed(client):
     # Missing 'self_reported' block entirely
@@ -82,14 +86,15 @@ def test_score_malformed(client):
     response = client.post("/score", json=payload)
     assert response.status_code == 422  # Enforces Pydantic model validation
 
+
 def test_score_example_latency(client):
     start_time = time.time()
     response = client.get("/score/example")
     elapsed = time.time() - start_time
-    
+
     assert response.status_code == 200
     assert elapsed < 1.0, f"Latency gate failed: request took {elapsed:.4f} seconds"
-    
+
     data = response.json()
     assert data["risk_tier"] in ["Low", "Medium", "High"]
     assert "synthetic" in data["data_disclosure"].lower()

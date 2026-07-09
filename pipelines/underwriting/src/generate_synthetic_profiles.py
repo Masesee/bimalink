@@ -7,7 +7,8 @@ import pandas as pd
 # Add the parent directory to the python path to allow importing schemas
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from schemas.contracts import UserProfile, SelfReported, SyntheticHistorical, LiveBehavioral
+from schemas.contracts import UserProfile, SelfReported, SyntheticHistorical, LiveBehavioral  # noqa: E402
+
 
 def generate_synthetic_data(num_rows=3000, seed=42):
     # Set seed for reproducibility
@@ -26,7 +27,7 @@ def generate_synthetic_data(num_rows=3000, seed=42):
     #       - 1.0 * years_over_3 (active over 3 years -> lower default)
     #       - 1.0 * income_over_1500 (income over 1500 -> lower default)
     #       + gaussian_noise (std = 1.2)
-    
+
     for i in range(num_rows):
         # 1. Generate phone number hash
         raw_phone = f"+25471234{i:04d}"
@@ -35,7 +36,7 @@ def generate_synthetic_data(num_rows=3000, seed=42):
         # 2. Self reported fields
         # Occupation distribution: boda_rider (40%), market_trader (40%), other (20%)
         occupation = rng.choice(["boda_rider", "market_trader", "other"], p=[0.4, 0.4, 0.2])
-        
+
         # Avg daily income band (KES): under_500, 500_to_1500, over_1500
         # Income correlates slightly with occupation
         if occupation == "boda_rider":
@@ -51,7 +52,7 @@ def generate_synthetic_data(num_rows=3000, seed=42):
         # 3. Synthetic historical fields
         # momo_txn_frequency: transactions per week, exponential-like
         momo_txn_frequency = float(rng.exponential(scale=12.0) + 1.0)
-        
+
         # momo_txn_regularity_score: 0-1, higher = more regular intervals
         momo_txn_regularity_score = float(rng.uniform(0.2, 0.95))
 
@@ -63,7 +64,7 @@ def generate_synthetic_data(num_rows=3000, seed=42):
 
         # 4. Live behavioral fields (session data, independent of target except menu_completion_rate)
         ussd_session_duration_sec = float(rng.exponential(scale=30.0) + 5.0)
-        
+
         # menu_completion_rate correlates weakly with regularity score
         raw_completion = momo_txn_regularity_score * 0.3 + rng.normal(loc=0.5, scale=0.15)
         menu_completion_rate = float(np.clip(raw_completion, 0.0, 1.0))
@@ -77,14 +78,14 @@ def generate_synthetic_data(num_rows=3000, seed=42):
             avg_daily_income_band=avg_daily_income_band,
             years_active=years_active
         )
-        
+
         synthetic_historical = SyntheticHistorical(
             momo_txn_frequency=momo_txn_frequency,
             momo_txn_regularity_score=momo_txn_regularity_score,
             airtime_topup_cadence=airtime_topup_cadence,
             sacco_contribution_flag=sacco_contribution_flag
         )
-        
+
         live_behavioral = LiveBehavioral(
             ussd_session_duration_sec=ussd_session_duration_sec,
             menu_completion_rate=menu_completion_rate,
@@ -149,13 +150,14 @@ def generate_synthetic_data(num_rows=3000, seed=42):
     df = pd.DataFrame(flat_data)
     return df
 
+
 def main():
     print("[LOG] Starting generation of synthetic user profiles...")
-    
+
     # Create target directory if it doesn't exist
     data_dir = os.path.join("pipelines", "underwriting", "data")
     os.makedirs(data_dir, exist_ok=True)
-    
+
     df = generate_synthetic_data(num_rows=3000, seed=42)
 
     # Label synthetic explicitly in file paths and logs
@@ -171,22 +173,25 @@ def main():
     # Summary stats
     default_rate = df["defaulted_or_claimed"].mean()
     class_counts = df["defaulted_or_claimed"].value_counts().to_dict()
-    
+
     print("\n--- SYNTHETIC DATA GENERATION SUMMARY STATS ---")
     print(f"Total Synthetic Rows: {len(df)}")
-    print(f"Synthetic Target Class Balance: 0={class_counts.get(0, 0)}, 1={class_counts.get(1, 0)} (Default Rate: {default_rate:.2%})")
-    
+    print(
+        f"Synthetic Target Class Balance: 0={class_counts.get(0, 0)}, "
+        f"1={class_counts.get(1, 0)} (Default Rate: {default_rate:.2%})"
+    )
+
     print("\nFeature Means by Synthetic Class (defaulted_or_claimed):")
     numeric_cols = [
-        "momo_txn_frequency", 
-        "momo_txn_regularity_score", 
-        "airtime_topup_cadence", 
+        "momo_txn_frequency",
+        "momo_txn_regularity_score",
+        "airtime_topup_cadence",
         "sacco_contribution_flag",
         "menu_completion_rate"
     ]
     means_df = df.groupby("defaulted_or_claimed")[numeric_cols].mean()
     print(means_df.to_string())
-    
+
     print("\nCategorical Distributions by Synthetic Class:")
     for cat_col in ["occupation", "avg_daily_income_band", "years_active"]:
         print(f"\nDistribution for {cat_col}:")
@@ -195,6 +200,7 @@ def main():
         dist_pct = dist.div(dist.sum(axis=1), axis=0) * 100
         print(dist_pct.round(1).astype(str) + "%")
     print("-----------------------------------------------\n")
+
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,6 @@ import os
 import json
 import joblib
 import pandas as pd
-import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score, confusion_matrix
 import xgboost as xgb
@@ -13,26 +12,27 @@ import shap
 # Add the parent directory to the python path to allow importing schemas
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
 def preprocess_features(df, encoder_config=None):
     """
     Preprocess features for training and scoring.
     One-hot encodes categorical columns and aligns columns with training space.
     """
     df = df.copy()
-    
+
     categorical_cols = ["occupation", "avg_daily_income_band", "years_active"]
-    
+
     # Remove phone number hash if it's there
     if "phone_number_hash" in df.columns:
         df = df.drop(columns=["phone_number_hash"])
-        
+
     # Standardize sacco contribution flag
     if "sacco_contribution_flag" in df.columns:
         df["sacco_contribution_flag"] = df["sacco_contribution_flag"].astype(int)
 
     # Perform one-hot encoding
     df_encoded = pd.get_dummies(df, columns=categorical_cols, dtype=int)
-    
+
     if encoder_config is None:
         # Training mode: capture the exact feature names and ordering
         feature_names = list(df_encoded.columns)
@@ -46,6 +46,7 @@ def preprocess_features(df, encoder_config=None):
             df_encoded = df_encoded.drop(columns=["defaulted_or_claimed"])
         df_aligned = df_encoded.reindex(columns=feature_names, fill_value=0)
         return df_aligned
+
 
 def map_default_probability_to_tier(prob: float) -> tuple[str, int]:
     """
@@ -62,6 +63,7 @@ def map_default_probability_to_tier(prob: float) -> tuple[str, int]:
     else:
         return "High", 500
 
+
 def train_pipeline(data_path, models_dir):
     print(f"[LOG] Loading synthetic profiles from {data_path}...")
     df = pd.read_csv(data_path)
@@ -72,7 +74,7 @@ def train_pipeline(data_path, models_dir):
 
     # Preprocess features
     X_encoded, encoder_config = preprocess_features(X_raw)
-    
+
     # Drop target column if pd.get_dummies kept it (it shouldn't, but let's be safe)
     if "defaulted_or_claimed" in X_encoded.columns:
         X_encoded = X_encoded.drop(columns=["defaulted_or_claimed"])
@@ -129,9 +131,15 @@ def train_pipeline(data_path, models_dir):
 
     # Fail loudly on out-of-band ROC-AUC
     if auc < 0.65:
-        raise ValueError(f"CRITICAL ERROR: Test ROC-AUC of {auc:.4f} is below minimum threshold of 0.65. Model did not learn.")
+        raise ValueError(
+            f"CRITICAL ERROR: Test ROC-AUC of {auc:.4f} is below minimum threshold of 0.65. "
+            "Model did not learn."
+        )
     if auc > 0.97:
-        raise ValueError(f"CRITICAL ERROR: Test ROC-AUC of {auc:.4f} is above maximum threshold of 0.97. Target leakage detected.")
+        raise ValueError(
+            f"CRITICAL ERROR: Test ROC-AUC of {auc:.4f} is above maximum threshold of 0.97. "
+            "Target leakage detected."
+        )
 
     # Fit SHAP Explainer
     print("[LOG] Fitting SHAP TreeExplainer on trained model...")
@@ -154,6 +162,7 @@ def train_pipeline(data_path, models_dir):
     print(f"[LOG] Saved SHAP explainer to: {explainer_path}")
     print(f"[LOG] Saved encoder config to: {encoder_path}")
     print("[LOG] Model training pipeline run completed successfully.")
+
 
 if __name__ == "__main__":
     data_file = os.path.join("pipelines", "underwriting", "data", "synthetic_profiles.csv")
