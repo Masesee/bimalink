@@ -26,7 +26,7 @@ def test_health_endpoint(client):
     """Tests GET /health response."""
     res = client.get("/health")
     assert res.status_code == 200
-    assert res.json == {"status": "ok", "app": "diabima_ussd"}
+    assert res.json == {"status": "ok", "app": "bimalink_ussd"}
 
 
 def test_ussd_callback_session_lifecycle(client):
@@ -40,7 +40,7 @@ def test_ussd_callback_session_lifecycle(client):
     }
     res = client.post("/ussd", data=payload)
     assert res.status_code == 200
-    assert res.text.startswith("CON Welcome to DiaBima. Choose Language:")
+    assert res.text.startswith("CON Welcome to BimaLink. Choose Language:")
     assert "lifecycle_session_id" in sessions
 
     # 2. Select Language

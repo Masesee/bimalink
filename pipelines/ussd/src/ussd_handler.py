@@ -29,7 +29,7 @@ sessions: dict[str, dict] = {}
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    return {"status": "ok", "app": "diabima_ussd"}
+    return {"status": "ok", "app": "bimalink_ussd"}
 
 
 @app.route("/ussd", methods=["POST"])

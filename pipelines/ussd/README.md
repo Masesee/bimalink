@@ -1,4 +1,4 @@
-# DiaBima USSD Onboarding Service
+# BimaLink USSD Onboarding Service
 
 The `ussd/` service is a lightweight, stateless Flask application that acts as the client-facing gateway for informal sector workers using basic feature phones. It provides a guided onboarding menu, validates answers in real-time, builds user profiles, and communicates with the core underwriting scoring service to fetch micro-insurance quotes.
 
@@ -10,7 +10,7 @@ This layer is decoupled from the underwriting system. It does not import any mod
        [ Africa's Talking USSD Gateway ]
                      │ (HTTP POST)
                      ▼
-       [ DiaBima USSD Layer (Flask:5000) ]
+       [ BimaLink USSD Layer (Flask:5000) ]
                      │ (HTTP POST JSON payload)
                      ▼
   [ Underwriting Scoring Service (FastAPI:8000) ]

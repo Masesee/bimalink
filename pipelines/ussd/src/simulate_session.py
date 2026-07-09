@@ -5,7 +5,7 @@ import requests
 
 def run_simulator(phone_number, server_url):
     print("====================================================")
-    print("        DiaBima USSD Onboarding CLI Simulator       ")
+    print("        BimaLink USSD Onboarding CLI Simulator       ")
     print("====================================================")
     print(f"Target Server : {server_url}")
     print(f"Phone Number  : {phone_number}")

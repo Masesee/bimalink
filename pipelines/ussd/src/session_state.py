@@ -37,7 +37,7 @@ STEP_OPTIONS = [
 ]
 
 STEP_PROMPTS = [
-    "Welcome to DiaBima. Choose Language:\n1. English\n2. Kiswahili",
+    "Welcome to BimaLink. Choose Language:\n1. English\n2. Kiswahili",
     "Select your occupation:\n1. Boda Boda Rider\n2. Market Trader\n3. Other Informal Worker",
     "Select your average daily income band:\n1. Under KES 500\n2. KES 500 to 1,500\n3. Over KES 1,500",
     "How many years have you been active in this occupation:\n1. Under 1 year\n2. 1 to 3 years\n3. Over 3 years"
